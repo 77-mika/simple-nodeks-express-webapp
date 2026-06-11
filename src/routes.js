@@ -1,6 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const mongoose = require("mongoose");
+const validate = require("./validate");
+const { TodoSchema, TodoUpdateSchema } = require("./validators");
 
 const Todo = mongoose.model(
     "todo",
@@ -16,35 +18,47 @@ router.get("/", async (req, res) => {
     res.json(todos);
 });
 
-router.post("/", async (req, res) => {
-    if (!req.body.text) {
-        res.status(400).json({ error: "text is required" });
+router.post("/", validate(TodoSchema), async (req, res) => {
+    try {
+        const todo = await Todo.create({
+            text: req.body.text,
+            userId: req.userId,
+        });
+        res.status(201).json(todo);
+    } catch (err) {
+        next(err);
     }
-    const todo = await Todo.create({ text: req.body.text,userId:req.userId });
-    res.status(201).json(todo);
 });
 
-router.put("/:id", async (req, res) => {
-    if (req.body.done === undefined) {
-        res.status(400).json({ error: "'done' field is required" });
+router.put("/:id", validate(TodoUpdateSchema), async (req, res) => {
+    try {
+        const todo = await Todo.findByIdAndUpdate(
+            { _id: req.params.id, userId: req.userId },
+            { done: req.body.done },
+            { new: true },
+        );
+        if (!todo) {
+            res.status(404).json({ error: "Todo not found" });
+        }
+        res.json(todo);
+    } catch (err) {
+        next(err);
     }
-    const todo = await Todo.findByIdAndUpdate(
-        { _id: req.params.id, userId: req.userId },
-        { done: req.body.done },
-        { new: true },
-    );
-    if (!todo) {
-        res.status(400).json({ error: "Todo not found" });
-    }
-    res.json(todo);
 });
 
-router.delete("/:id", async (req, res) => {
-    const todo = await Todo.findByIdAndDelete({ _id: req.params.id, userId:req.userId });
-    if(!todo){
-        return res.status(404).json({error:"Todo not found"});
+router.delete("/:id", async (req, res, next) => {
+    try {
+        const todo = await Todo.findByIdAndDelete({
+            _id: req.params.id,
+            userId: req.userId,
+        });
+        if (!todo) {
+            return res.status(404).json({ error: "Todo not found" });
+        }
+        res.json({ message: "deleted" });
+    } catch (err) {
+        next(err);
     }
-    res.json({ message: "deleted" });
 });
 
 module.exports = router;
